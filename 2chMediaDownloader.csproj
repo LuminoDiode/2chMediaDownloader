@@ -7,4 +7,8 @@
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\LuminoDiode\Boost\Boost.csproj" />
+  </ItemGroup>
+
 </Project>

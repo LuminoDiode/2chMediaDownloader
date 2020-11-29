@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.30717.126
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "2chMediaDownloader", "2chMediaDownloader.csproj", "{6753EE43-19BB-4B91-A02D-D2ED9A693BF3}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Boost", "..\LuminoDiode\Boost\Boost.csproj", "{BD540FFC-070D-41C8-A089-882A13B5E0A0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{6753EE43-19BB-4B91-A02D-D2ED9A693BF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6753EE43-19BB-4B91-A02D-D2ED9A693BF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6753EE43-19BB-4B91-A02D-D2ED9A693BF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD540FFC-070D-41C8-A089-882A13B5E0A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD540FFC-070D-41C8-A089-882A13B5E0A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD540FFC-070D-41C8-A089-882A13B5E0A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD540FFC-070D-41C8-A089-882A13B5E0A0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
