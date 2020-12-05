@@ -11,8 +11,4 @@
     <PackageReference Include="HtmlAgilityPack" Version="1.11.28" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\LuminoDiode\Boost\Boost.csproj" />
-  </ItemGroup>
-
 </Project>

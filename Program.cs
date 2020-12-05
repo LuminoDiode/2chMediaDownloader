@@ -21,12 +21,12 @@ namespace _2chMediaDownloader
 	{
 		static readonly string[] MediaFileExtensions = "mp4;webm;jpeg;jpg;png;gif;bmp;webp".Split(";");
 
-		static readonly Regex PostUriRegex = 
+		static readonly Regex PostUriRegex =
 			new Regex(@"2ch[.]hk/(.*?)/res/([0-9]*)[.]html");
 		static readonly Regex MediaRegex =
 			new Regex($"(data-src|src|href)=\"/(.*?)/([0-9]*)[.]({string.Join('|', MediaFileExtensions)})\"",
 				RegexOptions.IgnorePatternWhitespace);
-		
+
 
 		static string URIsText;
 		static bool SubFoldersRequired = false;
@@ -40,10 +40,10 @@ namespace _2chMediaDownloader
 		[STAThread]
 		public static void Main()
 		{
-			Label InfoLabel = new Label {Text = "Inset your 2ch.hk thread URIs here:"};
+			Label InfoLabel = new Label { Text = "Inset your 2ch.hk thread URIs here:" };
 			RichTextBox URIsTextBox = new RichTextBox();
-			CheckBox CreateSubFoldersCheckBox = new CheckBox {Text = "Create sub-folder for each thread", Checked = SubFoldersRequired};
-			Button DownloadButton = new Button {Text = "Start downloading"};
+			CheckBox CreateSubFoldersCheckBox = new CheckBox { Text = "Create sub-folder for each thread", Checked = SubFoldersRequired };
+			Button DownloadButton = new Button { Text = "Start downloading" };
 			Form MainForm = new Form();
 
 			URIsText = URIsTextBox.Text;
@@ -51,7 +51,7 @@ namespace _2chMediaDownloader
 			URIsTextBox.TextChanged += URIsTextBox_TextChanged;
 			CreateSubFoldersCheckBox.CheckedChanged += CreateSubFoldersCheckBox_CheckedChanged;
 
-			Control[] AllControls = {InfoLabel, URIsTextBox, CreateSubFoldersCheckBox, DownloadButton};
+			Control[] AllControls = { InfoLabel, URIsTextBox, CreateSubFoldersCheckBox, DownloadButton };
 			Boost.Controls.ToSameWidth(AllControls, 300);
 			Panel AllElementsPanel = Boost.Controls.ToVerticalStackPanel(AllControls);
 			MainForm.ClientSize = AllElementsPanel.Size;
@@ -69,7 +69,7 @@ namespace _2chMediaDownloader
 			WebClient AutorizedWebClient = new WebClient();
 			DirectoryInfo CurrentDirectory;
 			string CurrentFileName;
-			
+
 			foreach (Uri ThreadUri in GetThreadURIsFromText(URIsText))
 			{
 				Trace.WriteLine($"Thread uri \"{ThreadUri.AbsoluteUri}\" recognized");
@@ -145,8 +145,38 @@ namespace _2chMediaDownloader
 		public static string GetFileNameFromURI(Uri FileUri) => FileUri.AbsoluteUri.Split('/').Last();
 
 
-		public static void CreateSubFoldersCheckBox_CheckedChanged(object sender, EventArgs e) =>SubFoldersRequired = ((CheckBox) sender).Checked;
-		public static void URIsTextBox_TextChanged(object sender, EventArgs e) =>URIsText = ((RichTextBox)sender).Text;
+		public static void CreateSubFoldersCheckBox_CheckedChanged(object sender, EventArgs e) => SubFoldersRequired = ((CheckBox)sender).Checked;
+		public static void URIsTextBox_TextChanged(object sender, EventArgs e) => URIsText = ((RichTextBox)sender).Text;
 
+	}
+}
+
+namespace Boost
+{
+	public static class Controls
+	{
+		public static Panel ToVerticalStackPanel(IList<Control> Controls, int space = 0)
+		{
+			Panel Out = new Panel();
+			int CurrentHeight = 0;
+			int OutWid = 0;
+
+			for (int i = 0; i < Controls.Count; i++)
+			{
+				Controls[i].Location = new Point(0, CurrentHeight);
+				Out.Controls.Add(Controls[i]);
+				CurrentHeight += Controls[i].Height + space;
+				if (Controls[i].Width > OutWid) OutWid = Controls[i].Width;
+			}
+
+			Out.Height = CurrentHeight - space;
+			Out.Width = OutWid;
+			return Out;
+		}
+
+		public static void ToSameWidth(IList<Control> Controls, int Width)
+		{
+			for (int i = 0; i < Controls.Count; i++) Controls[i].Width = Width;
+		}
 	}
 }
