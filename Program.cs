@@ -4,173 +4,212 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Collections.Generic;
-using System.Threading;
 using System.Diagnostics;
 using System.Windows.Forms;
 using System.Drawing;
-using System.Diagnostics.Tracing;
-using System.Net.Http;
+using System.Net.Cache;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using HtmlAgilityPack;
 using HtmlDocument = HtmlAgilityPack.HtmlDocument;
 
 namespace _2chMediaDownloader
 {
 	class Program
 	{
+		static DownloaderUI UI;
+
 		static readonly string[] MediaFileExtensions = "mp4;webm;jpeg;jpg;png;gif;bmp;webp".Split(";");
 
-		static readonly Regex PostUriRegex =
+		static readonly Regex ThreadUriRegex =
 			new Regex(@"2ch[.]hk/(.*?)/res/([0-9]*)[.]html");
 		static readonly Regex MediaRegex =
-			new Regex($"(data-src|src|href)=\"/(.*?)/([0-9]*)[.]({string.Join('|', MediaFileExtensions)})\"",
-				RegexOptions.IgnorePatternWhitespace);
-
-
-		static string URIsText;
-		static bool SubFoldersRequired = false;
+			new Regex($"(data-src|src|href)=\"/(.*?)/([0-9]*)[.]({string.Join('|', MediaFileExtensions)})\"", RegexOptions.IgnorePatternWhitespace);
 
 		static readonly DirectoryInfo SaveDirectoryInfo =
 			new DirectoryInfo(Environment.GetFolderPath(Environment.SpecialFolder.Personal) + @"\2chDownloads");
 
-
 		[DllImport("kernel32")] static extern bool AllocConsole();
-
 		[STAThread]
 		public static void Main()
 		{
-			Label InfoLabel = new Label { Text = "Inset your 2ch.hk thread URIs here:" };
-			RichTextBox URIsTextBox = new RichTextBox();
-			CheckBox CreateSubFoldersCheckBox = new CheckBox { Text = "Create sub-folder for each thread", Checked = SubFoldersRequired };
-			Button DownloadButton = new Button { Text = "Start downloading" };
-			Form MainForm = new Form();
+			AllocConsole();
+			Trace.Listeners.Add(new ConsoleTraceListener());
+			Trace.WriteLine("Console initialized and listening Trace class.");
 
-			URIsText = URIsTextBox.Text;
+			Trace.WriteLine("Creating UI instance...");
+			UI = new DownloaderUI();
 
-			URIsTextBox.TextChanged += URIsTextBox_TextChanged;
-			CreateSubFoldersCheckBox.CheckedChanged += CreateSubFoldersCheckBox_CheckedChanged;
+			Trace.WriteLine("Binding download button...");
+			UI.DownloadButtonClick += DownloadButton_Click;
 
-			Control[] AllControls = { InfoLabel, URIsTextBox, CreateSubFoldersCheckBox, DownloadButton };
-			Boost.Controls.ToSameWidth(AllControls, 300);
-			Panel AllElementsPanel = Boost.Controls.ToVerticalStackPanel(AllControls);
-			MainForm.ClientSize = AllElementsPanel.Size;
-			MainForm.Controls.Add(AllElementsPanel);
-
-			DownloadButton.Click += DownloadButton_Click;
-
-			Application.Run(MainForm);
-
+			Trace.WriteLine("Running UI...");
+			Application.Run((Form)UI);
 		}
 
-		public static void DownloadButton_Click(object sender, EventArgs e)
+		public static void DownloadButton_Click(object sender, EventArgs ea)
 		{
-			HtmlDocument CurrentHtmlDocument = new HtmlDocument();
-			WebClient AutorizedWebClient = new WebClient();
+			Trace.WriteLine("Download button clicked.");
+
+			Trace.WriteLine("Disabling UI...");
+			((Form)(UI)).Enabled = false;
+			WebClient DownloaderWC = new WebClient();
+			HtmlDocument CurrentPage = new HtmlDocument();
+			IEnumerable<Uri> MediaUris;
 			DirectoryInfo CurrentDirectory;
-			string CurrentFileName;
 
-			foreach (Uri ThreadUri in GetThreadURIsFromText(URIsText))
+			Trace.WriteLine("Beginning recognizing links and download...");
+
+			foreach (Uri ThreadUriMatch in GetThreadURIsFromText(UI.UrisInput))
 			{
-				Trace.WriteLine($"Thread uri \"{ThreadUri.AbsoluteUri}\" recognized");
+				Trace.WriteLine($"Thread uri \"{ThreadUriMatch}\" recognized.");
 
-				Trace.WriteLine($"Trying to download thread at \"{ThreadUri.AbsoluteUri}\"");
 				try
 				{
-					CurrentHtmlDocument.LoadHtml(AutorizedWebClient.DownloadString(ThreadUri));
+					CurrentPage.LoadHtml(DownloaderWC.DownloadString(ThreadUriMatch));
 				}
 				catch (WebException we)
 				{
-					Trace.WriteLine($"Unable to download page \"{ThreadUri.AbsoluteUri}\" cause of \"{we.Message}\"");
+					Trace.WriteLine(
+						$"Web error while trying to access thread page at \"{ThreadUriMatch}\": \"{we.Message}\".");
 					continue;
 				}
-				Trace.WriteLine($"Thread page \"{ThreadUri.AbsoluteUri}\" downloaded succesfully");
-
-				if (SubFoldersRequired)
+				catch (Exception e)
 				{
-					Trace.WriteLine($"Trying to create sub-folder for thread \"{ThreadUri.AbsoluteUri}\"");
-					CurrentDirectory = SaveDirectoryInfo.CreateSubdirectory(GetThreadNumberFromURI(ThreadUri));
-					Trace.WriteLine($"Sub-folder for media from thread \"{ThreadUri.AbsoluteUri}\" created as \"{CurrentDirectory.FullName}\"");
+					Trace.WriteLine(
+						$"Unexpected error while trying to access thread page at \"{ThreadUriMatch}\": \"{e.Message}\".");
+					continue;
 				}
+
+				Trace.WriteLine($"Thread page at \"{ThreadUriMatch}\" downloaded.");
+
+				Trace.WriteLine($"Parsing page at \"{ThreadUriMatch}\" to media links...");
+				try
+				{
+					MediaUris = GetMediaURIsFromThreadHtmlPage(CurrentPage);
+				}
+				catch (Exception e)
+				{
+					Trace.WriteLine(
+						$"Unexpected error while parsing page at \"{ThreadUriMatch}\" to media links: \"{e.Message}\".");
+					continue;
+				}
+
+				Trace.WriteLine($"Total media links found at \"{ThreadUriMatch}\": {MediaUris.Count()}.");
+				Trace.WriteLine(
+					$"Media links found at \"{ThreadUriMatch}\": \"{string.Join(';', MediaUris.Select(x => '"' + x.AbsoluteUri + '"'))}\".");
+
+				Trace.WriteLine($"Beginning download files from thread at \"{ThreadUriMatch}\".");
+
+				if (UI.SubFoldersRequired)
+					CurrentDirectory = SaveDirectoryInfo.CreateSubdirectory(GetThreadNumberFromURI(ThreadUriMatch));
 				else
-				{
 					CurrentDirectory = SaveDirectoryInfo;
-					Trace.WriteLine($"Sub-folder for thread \"{ThreadUri.AbsoluteUri}\" is not required. Files will be saved at \"{CurrentDirectory.FullName}\"");
-				}
 
-				foreach (Uri MediaUri in GetMediaURIsFromThreadHtmlPage(CurrentHtmlDocument))
+				CurrentDirectory.Create();
+
+				foreach (Uri MediaUri in MediaUris)
 				{
-					Trace.WriteLine($"Media uri \"{MediaUri.AbsoluteUri}\" from thread \"{ThreadUri.AbsoluteUri}\" recognized");
-
-					CurrentFileName = CurrentDirectory.FullName + '\\' + GetFileNameFromURI(MediaUri);
-
-					if (File.Exists(CurrentFileName))
+					FileInfo CurrentFile = new FileInfo(CurrentDirectory.FullName + GetFileNameFromURI(MediaUri));
+					if (CurrentFile.Exists)
 					{
-						Trace.WriteLine(
-							$"File \"{MediaUri.AbsoluteUri}\" from thread \"{ThreadUri.AbsoluteUri}\" skipped as already existing at \"{CurrentFileName}\"");
-						continue;
+						Trace.WriteLine($"File at \"{MediaUri}\" from thread at \"{ThreadUriMatch}\" skipped as existing at \"{CurrentFile.FullName}\".");
 					}
 
-					Trace.WriteLine($"Trying to download media at \"{MediaUri.AbsoluteUri}\"");
 					try
 					{
-						AutorizedWebClient.DownloadFile(MediaUri,
-							CurrentDirectory.FullName + '\\' + GetFileNameFromURI(MediaUri));
+						Trace.WriteLine(
+							$"Beginning download file at \"{MediaUri}\" from thread at \"{ThreadUriMatch}\" as \"{CurrentFile.FullName}\".");
+						DownloaderWC.DownloadFile(MediaUri, CurrentFile.FullName);
 					}
 					catch (WebException we)
 					{
-						Trace.WriteLine($"Unable to download file \"{MediaUri.AbsoluteUri}\" from thread \"{ThreadUri.AbsoluteUri}\" cause of \"{we.Message}\"");
+						Trace.WriteLine(
+							$"Web error while trying to download file at \"{MediaUri}\" from thread at \"{ThreadUriMatch}\" as \"{CurrentFile.FullName}\": \"{we.Message}\".");
+						if (we.InnerException != null) Console.WriteLine(we.InnerException.Message);
 						continue;
 					}
-					Trace.WriteLine($"Media \"{MediaUri.AbsoluteUri}\" downloaded succesfully");
+					catch (Exception e)
+					{
+						Trace.WriteLine(
+							$"Unexpected error while trying to download file at \"{MediaUri}\" from thread at \"{ThreadUriMatch}\" as \"{CurrentFile.FullName}\": \"{e.Message}\".");
+					}
+					Trace.WriteLine($"File at \"{MediaUri}\" from thread at \"{ThreadUriMatch}\" saved as \"{CurrentFile.FullName}\".");
 				}
 			}
+
+			Trace.WriteLine("Download process finished.");
+			Trace.WriteLine("Enabling UI...");
+			((Form)(UI)).Enabled = true;
 		}
 
-		public static IEnumerable<Uri> GetMediaURIsFromThreadHtmlPage(HtmlDocument ThreadPage)
+
+		static IEnumerable<Uri> GetMediaURIsFromThreadHtmlPage(HtmlDocument ThreadPage)
 		{
 			return
-				MediaRegex.Matches(string.Concat(ThreadPage.DocumentNode.SelectNodes("//a[contains(@class, 'post__image-link')]").Select(x => x.OuterHtml)))
-					.Where(x => !x.Value.Split('.')[0].EndsWith('s')).Select(x => new Uri(@"https://2ch.hk" + x.Value.Split('"')[1]));
+				MediaRegex.Matches(string.Concat(ThreadPage.DocumentNode.SelectNodes("//a[contains(@class, 'post__image-link')]").Select(x => x.OuterHtml.Split('>')[0])))
+					.Select(x => new Uri(@"https://2ch.hk" + x.Value.Split('"')[1]));
 		}
-
-		public static IEnumerable<Uri> GetThreadURIsFromText(string Text)
+		static IEnumerable<Uri> GetThreadURIsFromText(string Text)
 		{
 			return
-				PostUriRegex.Matches(Text).Select(x => new Uri(@"https://" + x.Value));
+				ThreadUriRegex.Matches(Text).Select(x => new Uri(@"https://" + x.Value));
 		}
-
-		public static string GetThreadNumberFromURI(Uri ThreadUri) => ThreadUri.AbsoluteUri.Split('/').Last().Split('.').First();
-
-		public static string GetFileNameFromURI(Uri FileUri) => FileUri.AbsoluteUri.Split('/').Last();
-
-
-		public static void CreateSubFoldersCheckBox_CheckedChanged(object sender, EventArgs e) => SubFoldersRequired = ((CheckBox)sender).Checked;
-		public static void URIsTextBox_TextChanged(object sender, EventArgs e) => URIsText = ((RichTextBox)sender).Text;
-
+		static string GetThreadNumberFromURI(Uri ThreadUri) => ThreadUri.AbsoluteUri.Split('/').Last().Split('.').First();
+		static string GetFileNameFromURI(Uri FileUri) => FileUri.AbsoluteUri.Split('/').Last();
 	}
-}
 
-namespace Boost
-{
-	public static class Controls
+
+	class DownloaderUI
 	{
-		public static Panel ToVerticalStackPanel(IList<Control> Controls, int space = 0)
+		Label InfoLabel = new Label { Text = "Inset your 2ch.hk thread URIs here:" };
+		RichTextBox URIsTextBox = new RichTextBox();
+		CheckBox CreateSubFoldersCheckBox = new CheckBox { Text = "Create sub-folder for each thread", Checked = true };
+		Button DownloadButton = new Button { Text = "Start downloading" };
+		Form MainForm = new Form() { };
+
+		public DownloaderUI()
+		{
+			Control[] AllControls = { InfoLabel, URIsTextBox, CreateSubFoldersCheckBox, DownloadButton };
+			Controls.ToSameWidth(AllControls, 300);
+			Panel AllElementsPanel = Controls.ToVerticalStackPanel(AllControls);
+			MainForm.Controls.Add(AllElementsPanel);
+			MainForm.ClientSize = new Size(AllElementsPanel.Width, AllElementsPanel.Height);
+			MainForm.MinimumSize = MainForm.MaximumSize = MainForm.Size;
+		}
+
+		public static explicit operator Form(DownloaderUI dui)
+		{
+			return dui.MainForm;
+		}
+
+		public Form Form => MainForm;
+		public string UrisInput => URIsTextBox.Text;
+		public bool SubFoldersRequired => CreateSubFoldersCheckBox.Checked;
+
+		public event EventHandler DownloadButtonClick
+		{
+			add => DownloadButton.Click += value;
+			remove => DownloadButton.Click -= value;
+		}
+	}
+
+	class Controls
+	{
+		public static Panel ToVerticalStackPanel(IList<Control> Controls, int Space = 0)
 		{
 			Panel Out = new Panel();
 			int CurrentHeight = 0;
-			int OutWid = 0;
 
 			for (int i = 0; i < Controls.Count; i++)
 			{
 				Controls[i].Location = new Point(0, CurrentHeight);
 				Out.Controls.Add(Controls[i]);
-				CurrentHeight += Controls[i].Height + space;
-				if (Controls[i].Width > OutWid) OutWid = Controls[i].Width;
+				CurrentHeight += Controls[i].Height + Space;
 			}
 
-			Out.Height = CurrentHeight - space;
-			Out.Width = OutWid;
+			Out.Height = Controls.Last().Location.Y + Controls.Last().Height;
+			Out.Width = Controls.Max(x => x.Width);
+			Out.BackColor = Color.Transparent;
+
 			return Out;
 		}
 
