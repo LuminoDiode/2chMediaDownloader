@@ -6,6 +6,16 @@
     <RootNamespace>_2chMediaDownloader</RootNamespace>
     <UseWindowsForms>true</UseWindowsForms>
     <StartupObject>_2chMediaDownloader.Program</StartupObject>
+    <ApplicationIcon />
+    <Version>1.0</Version>
+    <Authors>Rodion Ryzhov</Authors>
+    <Company></Company>
+    <Product />
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DefineConstants>TRACE</DefineConstants>
+    <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
 
   <ItemGroup>
